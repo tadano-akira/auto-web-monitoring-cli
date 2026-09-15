@@ -6,9 +6,9 @@ Wants=network-online.target
 [Service]
 Type=simple
 User=ubuntu
-WorkingDirectory=/opt/web-monitor
-EnvironmentFile=/opt/web-monitor/.env
-ExecStart=/opt/web-monitor/.venv/bin/python /opt/web-monitor/monitor.py --config /opt/web-monitor/monitoring.yaml
+WorkingDirectory=/opt/auto-web-monitoring-cli
+EnvironmentFile=/opt/auto-web-monitoring-cli/.env
+ExecStart=/opt/auto-web-monitoring-cli/.venv/bin/python /opt/auto-web-monitoring-cli/monitor.py --config /opt/auto-web-monitoring-cli/monitoring.yaml
 Restart=always
 RestartSec=10
 
