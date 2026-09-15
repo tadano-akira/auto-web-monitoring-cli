@@ -5,7 +5,7 @@ Wants=network-online.target
 
 [Service]
 Type=simple
-User=ubuntu
+User=shishido
 WorkingDirectory=/opt/auto-web-monitoring-cli
 EnvironmentFile=/opt/auto-web-monitoring-cli/.env
 ExecStart=/opt/auto-web-monitoring-cli/.venv/bin/python /opt/auto-web-monitoring-cli/monitor.py --config /opt/auto-web-monitoring-cli/monitoring.yaml
