@@ -5,7 +5,7 @@
 # 個人情報を含み得るため git管理する場合は取り扱いに注意すること。
 
 # --- SMTP設定 (Brevo) ---
-# password は直接書かず、環境変数から読み込む(kaikei-djangoと同様の運用)。
+# password は直接書かず、環境変数から読み込む。
 # 起動前に export BREVO_SMTP_PASSWORD=xxxxx しておくこと。
 smtp:
   host: smtp-relay.brevo.com
