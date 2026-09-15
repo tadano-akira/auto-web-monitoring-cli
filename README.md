@@ -114,6 +114,57 @@ BREVO_SMTP_PASSWORD=your-brevo-smtp-key
 set -a && source .env && set +a
 ```
 
+## 通知メールのテンプレート変更
+
+件名・本文は設定ファイルではなく [`monitor.py`](monitor.py) の `send_notification()` 関数内に直書きしている。
+テンプレートを変更したい場合は、このコードを直接編集する。
+
+```python
+def send_notification(smtp_config: dict, monitor: Monitor) -> None:
+    ...
+    msg = EmailMessage()
+    msg["Subject"] = f"[Web監視] 監視No.{monitor.id} {monitor.name} が更新されました"
+    msg["From"] = smtp_config["from_addr"]
+    msg["To"] = monitor.notify_to
+    msg.set_content(
+        "監視対象ページの更新を検知し、通知キーワードに一致しました。\n\n"
+        f"監視No: {monitor.id}\n"
+        f"監視名: {monitor.name}\n"
+        f"URL: {monitor.url}\n"
+        f"通知キーワード: {monitor.keyword}\n"
+        f"検知日時: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}\n"
+    )
+```
+
+`msg["Subject"]` を書き換えれば件名を、`msg.set_content(...)` の文字列を書き換えれば本文を変更できる。
+本文中で使える値は次の通り(いずれも `Monitor` オブジェクトの属性、または通知時点の日時)。
+
+| 変数 | 内容 |
+|---|---|
+| `monitor.id` | 監視No |
+| `monitor.name` | 監視名 |
+| `monitor.url` | 監視対象URL |
+| `monitor.keyword` | 一致した通知キーワード |
+| `monitor.notify_to` | 通知先メールアドレス |
+| `datetime.now()` | 通知(検知)時点の日時 |
+
+HTMLメールにしたい場合は `msg.set_content(...)` の代わりに `msg.add_alternative(html, subtype="html")` を使う形に書き換える。
+
+編集後は次の手順で反映する。
+
+```bash
+python -m py_compile monitor.py   # 構文チェック
+git add monitor.py
+git commit -m "Update notification email template"
+git push
+
+# サーバー側
+ssh ubuntu-remote
+cd /opt/auto-web-monitoring-cli
+git pull
+sudo systemctl restart web-monitor
+```
+
 ## 実行方法
 
 ```bash
