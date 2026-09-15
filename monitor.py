@@ -168,8 +168,7 @@ def send_notification(smtp_config: dict, monitor: Monitor) -> None:
     password_env = smtp_config["password_env"]
     password = os.environ.get(password_env)
     if not password:
-        logger.error("環境変数 %s が未設定のため通知メールを送信できません", password_env)
-        return
+        raise RuntimeError(f"環境変数 {password_env} が未設定です")
 
     msg = EmailMessage()
     msg["Subject"] = f"[Web監視] 監視No.{monitor.id} {monitor.name} が更新されました"
