@@ -179,7 +179,7 @@ def send_notification(smtp_config: dict, monitor: Monitor) -> None:
         f"監視No: {monitor.id}\n"
         f"監視名: {monitor.name}\n"
         f"URL: {monitor.url}\n"
-        f"キーワード: {monitor.keyword}\n"
+        f"通知キーワード: {monitor.keyword}\n"
         f"検知日時: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}\n"
     )
 
