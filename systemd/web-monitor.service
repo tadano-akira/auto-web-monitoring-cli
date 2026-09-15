@@ -1,0 +1,16 @@
+[Unit]
+Description=Web Page Update Monitor
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=ubuntu
+WorkingDirectory=/opt/web-monitor
+EnvironmentFile=/opt/web-monitor/.env
+ExecStart=/opt/web-monitor/.venv/bin/python /opt/web-monitor/monitor.py --config /opt/web-monitor/monitoring.yaml
+Restart=always
+RestartSec=10
+
+[Install]
+WantedBy=multi-user.target

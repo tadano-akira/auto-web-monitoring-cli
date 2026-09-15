@@ -1,0 +1,50 @@
+# Webページ更新監視ツール 設定ファイル例
+#
+# 実運用時は本ファイルを monitoring.yaml としてコピーし、監視対象を編集する。
+# monitoring.yaml はパスワード等は含まないが、通知先メールアドレス等の
+# 個人情報を含み得るため git管理する場合は取り扱いに注意すること。
+
+# --- SMTP設定 (Brevo) ---
+# password は直接書かず、環境変数から読み込む(kaikei-djangoと同様の運用)。
+# 起動前に export BREVO_SMTP_PASSWORD=xxxxx しておくこと。
+smtp:
+  host: smtp-relay.brevo.com
+  port: 587
+  user: "your-brevo-smtp-login@example.com"
+  password_env: BREVO_SMTP_PASSWORD
+  from_addr: "notify@example.com"
+
+# --- ヘッドレスChrome設定 ---
+chrome:
+  binary: google-chrome          # Ubuntu環境では chromium-browser の場合あり
+  virtual_time_budget_ms: 10000
+  timeout_sec: 30
+  extra_args: []                 # 必要に応じて --no-sandbox 等を追加
+
+# --- デーモンのチェック間隔(秒) ---
+# この秒数ごとに全監視対象をチェックし、各監視の interval_minutes と
+# time_window に従って「今チェックすべきか」を判定する。
+check_interval_sec: 60
+
+# --- 監視対象一覧 ---
+monitors:
+  - id: 1
+    name: "サンプルサイト"
+    url: "https://example.com/"
+    interval_minutes: 5          # 5分おきにチェック
+    time_window:
+      start: "09:00"
+      end: "19:00"
+    keyword: "セール"             # このキーワードが本文に含まれていたら通知
+    notify_to: "test@mail.com"
+
+  # 監視を追加する場合は id を変えて追記する
+  # - id: 2
+  #   name: "別のサイト"
+  #   url: "https://example.org/"
+  #   interval_minutes: 10
+  #   time_window:
+  #     start: "00:00"
+  #     end: "23:59"
+  #   keyword: "在庫あり"
+  #   notify_to: "test2@mail.com"
