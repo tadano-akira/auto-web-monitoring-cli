@@ -38,6 +38,15 @@ monitors:
     keyword: "セール"             # このキーワードが本文に含まれていたら通知
     notify_to: "test@mail.com"
 
+  # selector (CSSセレクタ) を指定すると、そのタグで囲まれた範囲のテキストだけで
+  # キーワードを判定する。例: <div class="test"><span>テスト</span></div> の「テスト」だけを検知
+  # - id: 3
+  #   name: "特定ブロック内の監視"
+  #   url: "https://example.net/"
+  #   selector: "div.test"         # class="test" の div 内 (子孫要素のテキストも含む)
+  #   keyword: "テスト"
+  #   notify_to: "test3@mail.com"
+
   # 監視を追加する場合は id を変えて追記する
   # - id: 2
   #   name: "別のサイト"

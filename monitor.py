@@ -4,6 +4,8 @@
 設定ファイル(YAML)に列挙した監視対象URLをヘッドレスChromeで定期取得し、
 前回取得分とのハッシュ差分でページ更新を検知する。更新があり、かつ
 キーワード条件に一致した場合のみメール通知する。同一日内の再通知は行わない。
+selector(CSSセレクタ)を指定した場合は、そのセレクタに一致する要素内の
+テキストだけをキーワード判定の対象とする。
 """
 
 from __future__ import annotations
@@ -24,7 +26,9 @@ from email.message import EmailMessage
 from pathlib import Path
 from typing import Optional
 
+import soupsieve
 import yaml
+from bs4 import BeautifulSoup
 
 BASE_DIR = Path(__file__).resolve().parent
 DEFAULT_CONFIG_PATH = BASE_DIR / "monitoring.yaml"
@@ -79,6 +83,7 @@ class Monitor:
     time_window: Optional[TimeWindow]
     keyword: str
     notify_to: str
+    selector: Optional[str] = None
 
 
 def parse_time_window(raw: Optional[dict]) -> Optional[TimeWindow]:
@@ -94,6 +99,18 @@ def load_config(path: Path) -> dict:
         return yaml.safe_load(f)
 
 
+def parse_selector(raw: dict) -> Optional[str]:
+    selector = raw.get("selector")
+    if not selector:
+        return None
+    try:
+        # 起動時に構文チェックし、不正なセレクタは設定エラーとして即座に検出する
+        soupsieve.compile(selector)
+    except soupsieve.SelectorSyntaxError as exc:
+        raise ValueError(f"監視No.{raw['id']}: selector が不正です: {selector!r}: {exc}") from exc
+    return selector
+
+
 def build_monitors(config: dict) -> list[Monitor]:
     monitors = []
     for raw in config.get("monitors", []):
@@ -106,6 +123,7 @@ def build_monitors(config: dict) -> list[Monitor]:
                 time_window=parse_time_window(raw.get("time_window")),
                 keyword=raw["keyword"],
                 notify_to=raw["notify_to"],
+                selector=parse_selector(raw),
             )
         )
     return monitors
@@ -164,6 +182,19 @@ def hash_html(html: str) -> str:
     return hashlib.sha256(html.encode("utf-8")).hexdigest()
 
 
+def keyword_matches(html: str, keyword: str, selector: Optional[str]) -> bool:
+    """キーワード一致判定。
+
+    selector 未指定時は従来通りHTML全体への部分一致。
+    指定時はセレクタに一致した各要素のテキスト(子孫要素のテキストを含む)に
+    キーワードが含まれるかを調べ、1要素でも含まれていれば一致とする。
+    """
+    if not selector:
+        return keyword in html
+    soup = BeautifulSoup(html, "html.parser")
+    return any(keyword in el.get_text() for el in soup.select(selector))
+
+
 def send_notification(smtp_config: dict, monitor: Monitor) -> None:
     password_env = smtp_config["password_env"]
     password = os.environ.get(password_env)
@@ -174,12 +205,14 @@ def send_notification(smtp_config: dict, monitor: Monitor) -> None:
     msg["Subject"] = f"[Web監視] 監視No.{monitor.id} {monitor.name} が更新されました"
     msg["From"] = smtp_config["from_addr"]
     msg["To"] = monitor.notify_to
+    selector_line = f"対象セレクタ: {monitor.selector}\n" if monitor.selector else ""
     msg.set_content(
         "監視対象ページの更新を検知し、通知キーワードに一致しました。\n\n"
         f"監視No: {monitor.id}\n"
         f"監視名: {monitor.name}\n"
         f"URL: {monitor.url}\n"
         f"通知キーワード: {monitor.keyword}\n"
+        f"{selector_line}"
         f"検知日時: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}\n"
     )
 
@@ -221,7 +254,7 @@ def check_monitor(monitor: Monitor, chrome_config: dict, smtp_config: dict, dry_
     state["last_hash"] = new_hash
     state["last_checked_at"] = now.isoformat()
 
-    if monitor.keyword in html:
+    if keyword_matches(html, monitor.keyword, monitor.selector):
         today_str = date.today().isoformat()
         if state.get("last_notified_date") == today_str:
             logger.info("監視No.%s: キーワード一致しましたが本日は通知済みのためスキップします", monitor.id)
@@ -238,7 +271,14 @@ def check_monitor(monitor: Monitor, chrome_config: dict, smtp_config: dict, dry_
                     return
             state["last_notified_date"] = today_str
     else:
-        logger.info("監視No.%s: 変更はありましたがキーワードに一致しませんでした", monitor.id)
+        if monitor.selector:
+            logger.info(
+                "監視No.%s: 変更はありましたがセレクタ「%s」内でキーワードに一致しませんでした",
+                monitor.id,
+                monitor.selector,
+            )
+        else:
+            logger.info("監視No.%s: 変更はありましたがキーワードに一致しませんでした", monitor.id)
 
     save_state(monitor.id, state)
 

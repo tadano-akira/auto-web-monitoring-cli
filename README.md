@@ -25,6 +25,7 @@
    - 初回取得時はベースラインとして保存するのみで、通知判定は行わない
    - ハッシュが一致すれば「変更なし」として終了する
 5. ハッシュが変化していれば「更新あり」と判定し、`keyword` がHTML本文に含まれるか調べる
+   - `selector` を指定した場合は、そのCSSセレクタに一致する要素内のテキストだけを対象に調べる
    - 含まれていなければ通知せず、ハッシュのみ更新する
    - 含まれていれば、その監視対象の当日分の通知をまだ送っていない場合に限りメール送信する
    - 送信済みかどうかは監視対象ごとに `last_notified_date`(日付)で判定するため、
@@ -92,9 +93,26 @@ chmod 600 .env
 | `interval_minutes` | - | `5` | チェック間隔(分) |
 | `time_window.start` / `time_window.end` | - | 制限なし | 監視する時間帯。`HH:MM` の24時間表記。省略すると終日監視する |
 | `keyword` | ○ | - | このキーワードが本文(取得HTML全体)に含まれていたら通知する部分一致・大文字小文字を区別する文字列 |
+| `selector` | - | なし | キーワード判定の対象範囲を絞るCSSセレクタ(例: `div.test`)。指定時は一致した要素のテキストのみで判定する |
 | `notify_to` | ○ | - | 通知先メールアドレス |
 
 `time_window` は `start > end` (例: `22:00`〜`06:00`)を指定すると日をまたぐ時間帯としても扱われる。
+
+#### `selector` によるタグ指定
+
+`selector` を省略すると、従来通り取得HTML全体(タグ・属性の文字列を含む)に対して部分一致する。
+指定すると、そのCSSセレクタに一致した要素ごとにテキスト(子孫要素のテキストを含み、タグは除く)を取り出し、
+いずれか1つの要素に `keyword` が含まれていれば一致とみなす。
+
+```yaml
+selector: "div.test"   # <div class="test"> ... </div> の中だけを見る
+keyword: "テスト"
+```
+
+上記の場合、`<div class="test"><span>テスト</span></div>` は一致し、
+`<div class="other"><span>テスト</span></div>` は一致しない。
+`div#news`、`ul.list > li`、`span[data-status="open"]` などの一般的なCSSセレクタが使える。
+不正なセレクタは起動時に設定エラーになる。
 
 設定例は [`monitoring.example.yaml`](monitoring.example.yaml) を参照。
 
@@ -132,9 +150,12 @@ def send_notification(smtp_config: dict, monitor: Monitor) -> None:
         f"監視名: {monitor.name}\n"
         f"URL: {monitor.url}\n"
         f"通知キーワード: {monitor.keyword}\n"
+        f"{selector_line}"
         f"検知日時: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}\n"
     )
 ```
+
+`selector_line` は `selector` 指定時のみ `対象セレクタ: ...` の1行になり、未指定時は空文字になる。
 
 `msg["Subject"]` を書き換えれば件名を、`msg.set_content(...)` の文字列を書き換えれば本文を変更できる。
 本文中で使える値は次の通り(いずれも `Monitor` オブジェクトの属性、または通知時点の日時)。
@@ -145,6 +166,7 @@ def send_notification(smtp_config: dict, monitor: Monitor) -> None:
 | `monitor.name` | 監視名 |
 | `monitor.url` | 監視対象URL |
 | `monitor.keyword` | 一致した通知キーワード |
+| `monitor.selector` | キーワード判定対象のCSSセレクタ(未指定時は `None`) |
 | `monitor.notify_to` | 通知先メールアドレス |
 | `datetime.now()` | 通知(検知)時点の日時 |
 
@@ -213,7 +235,9 @@ sudo systemctl restart web-monitor
 
 ## 注意事項・既知の制限
 
-- キーワード判定は取得したHTML全体に対する単純な部分一致(大文字小文字を区別)。正規表現や除外条件には対応していない
+- キーワード判定は単純な部分一致(大文字小文字を区別)。正規表現や除外条件には対応していない
+- `selector` はキーワード判定の範囲のみを絞る。更新検知(ハッシュ比較)は引き続きページ全体が対象のため、
+  セレクタ外の変更でも「更新あり」になり、その時点でセレクタ内にキーワードがあれば通知される
 - 差分検知はページ全体のハッシュ比較のみで、変更箇所の可視化(差分表示)は行わない
 - 監視対象の `url` や `id` を設定変更した場合、直前の `last_hash` と比較対象が変わるため、
   変更直後の1回は「更新あり」と誤検知しうる。設定変更時は該当 `state/monitor_<id>.json` を削除してから再起動することを推奨する
